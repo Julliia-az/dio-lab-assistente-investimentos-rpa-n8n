@@ -1,0 +1,457 @@
+{
+  "name": "Lab DIO - Assistente de Investimentos",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clientes",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a77da132-63fe-4cf8-a305-d3e0f6461ddc",
+      "name": "Receber Clientes",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "a2e6b0bf-f283-4014-aede-a7ccc453d83e"
+    },
+    {
+      "parameters": {
+        "url": "https://digitalinnovationone.github.io/dio-lab-assistente-investimentos-rpa-n8n/data.csv",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "9f726177-7f81-4ab1-ba25-188dc415f244",
+      "name": "Baixar Investimentos (CSV)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        272,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "headerRow": true
+        }
+      },
+      "id": "51ad67c2-6513-4a4b-b44c-8e8c751fc176",
+      "name": "Ler CSV",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.2,
+      "position": [
+        496,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "investimentos",
+        "options": {}
+      },
+      "id": "226cdc16-fa10-4e17-909e-07518e38795c",
+      "name": "Agrupar Investimentos",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        720,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "clientes",
+              "name": "clientes",
+              "type": "array",
+              "value": "={{ $(\"Receber Clientes\").first().json.body.clientes ?? $(\"Receber Clientes\").first().json.body }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b2318482-4856-4213-9e49-63da4d6b8089",
+      "name": "Preparar Clientes",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        800,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "clientes",
+        "options": {}
+      },
+      "id": "79511b1a-1335-4652-ade3-2bff8de2c4d0",
+      "name": "Separar Clientes",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1.1,
+      "position": [
+        1024,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "saldo_num",
+              "name": "saldo_num",
+              "type": "number",
+              "value": "={{ Number(String($json.saldo).replace(/[^0-9,]/g, '').replace(',', '.')) }}"
+            },
+            {
+              "id": "opcoes",
+              "name": "opcoes",
+              "type": "array",
+              "value": "={{ $('Agrupar Investimentos').first().json.investimentos.filter(i => i.perfil === $json.perfil && Number(i.minimo) <= Number(String($json.saldo).replace(/[^0-9,]/g, '').replace(',', '.'))) }}"
+            },
+            {
+              "id": "opcoes_texto",
+              "name": "opcoes_texto",
+              "type": "string",
+              "value": "={{ $('Agrupar Investimentos').first().json.investimentos.filter(i => i.perfil === $json.perfil && Number(i.minimo) <= Number(String($json.saldo).replace(/[^0-9,]/g, '').replace(',', '.'))).map(i => i.produto + ' (mínimo R$ ' + i.minimo + ', rentabilidade ' + i.rentabilidade + ')').join('; ') || 'nenhuma opção disponível para o saldo atual' }}"
+            },
+            {
+              "id": "mensagem_estatica",
+              "name": "mensagem_estatica",
+              "type": "string",
+              "value": "={{ 'Olá, ' + $json.nome.split(' ')[0] + '! ' + ({ Conservador: 'Como seu perfil é Conservador, nosso foco é renda fixa e segurança para o seu patrimônio.', Moderado: 'Como seu perfil é Moderado, sugerimos um mix equilibrado entre renda fixa e renda variável.', Arrojado: 'Como seu perfil é Arrojado, destacamos ações e opções com maior potencial de retorno.' }[$json.perfil] || 'Temos opções de investimento para você.') + ' Recomendações para você: ' + ($('Agrupar Investimentos').first().json.investimentos.filter(i => i.perfil === $json.perfil && Number(i.minimo) <= Number(String($json.saldo).replace(/[^0-9,]/g, '').replace(',', '.'))).map(i => i.produto + ' (' + i.rentabilidade + ')').join(', ') || 'fale com seu assessor para montar uma estratégia') + '.' }}"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "b598089d-93b8-4f1a-bde9-6898727019d3",
+      "name": "Cruzar Perfil x Investimentos",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1248,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Cliente: {{ $json.nome }}\nPerfil de investidor: {{ $json.perfil }}\nSaldo disponível: {{ $json.saldo }}\nOpções de investimento compatíveis (perfil e valor mínimo): {{ $json.opcoes_texto }}\n\nEscreva a mensagem de recomendação para este cliente.",
+        "options": {
+          "systemMessage": "Você é um assistente de investimentos de uma corretora brasileira. Escreva mensagens curtas (até 5 frases), em português do Brasil, cordiais e personalizadas para cada cliente. Use o primeiro nome do cliente, considere o perfil (Conservador = segurança e renda fixa; Moderado = equilíbrio entre renda fixa e variável; Arrojado = ações e maior potencial de retorno) e o saldo disponível. Recomende somente produtos da lista de opções compatíveis fornecida e nunca invente produtos ou rentabilidades. Se não houver opção compatível, sugira começar aos poucos e falar com um assessor. Não prometa retornos garantidos. Responda apenas com o texto da mensagem.",
+          "enableStreaming": false
+        }
+      },
+      "id": "621e8555-77b9-4077-a9e1-9f5c5bd444b5",
+      "name": "Agente de Investimentos",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1328,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash",
+        "options": {
+          "temperature": 0.7
+        }
+      },
+      "id": "a765c871-e685-4aeb-8118-a89943804baa",
+      "name": "Gemini",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        1408,
+        352
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "nome",
+              "name": "nome",
+              "type": "string",
+              "value": "={{ $('Cruzar Perfil x Investimentos').item.json.nome }}"
+            },
+            {
+              "id": "email",
+              "name": "email",
+              "type": "string",
+              "value": "={{ $('Cruzar Perfil x Investimentos').item.json.email }}"
+            },
+            {
+              "id": "saldo",
+              "name": "saldo",
+              "type": "string",
+              "value": "={{ $('Cruzar Perfil x Investimentos').item.json.saldo }}"
+            },
+            {
+              "id": "perfil",
+              "name": "perfil",
+              "type": "string",
+              "value": "={{ $('Cruzar Perfil x Investimentos').item.json.perfil }}"
+            },
+            {
+              "id": "opcoes",
+              "name": "opcoes",
+              "type": "array",
+              "value": "={{ $('Cruzar Perfil x Investimentos').item.json.opcoes }}"
+            },
+            {
+              "id": "mensagem_estatica",
+              "name": "mensagem_estatica",
+              "type": "string",
+              "value": "={{ $('Cruzar Perfil x Investimentos').item.json.mensagem_estatica }}"
+            },
+            {
+              "id": "mensagem_ia",
+              "name": "mensagem_ia",
+              "type": "string",
+              "value": "={{ $json.output }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aae69445-498b-46b8-b2dc-3cea551080a8",
+      "name": "Montar Mensagem Final",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1680,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "mensagens",
+        "options": {}
+      },
+      "id": "f5453571-4df9-4768-81bd-b7fc21d336d6",
+      "name": "Juntar Mensagens",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1856,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "f27cc125-9a2b-457b-a909-fc10390f7656",
+      "name": "Responder ao RPA",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2080,
+        128
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Receber Clientes": {
+      "main": [
+        [
+          {
+            "node": "Baixar Investimentos (CSV)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Baixar Investimentos (CSV)": {
+      "main": [
+        [
+          {
+            "node": "Ler CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler CSV": {
+      "main": [
+        [
+          {
+            "node": "Agrupar Investimentos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agrupar Investimentos": {
+      "main": [
+        [
+          {
+            "node": "Preparar Clientes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Clientes": {
+      "main": [
+        [
+          {
+            "node": "Separar Clientes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Separar Clientes": {
+      "main": [
+        [
+          {
+            "node": "Cruzar Perfil x Investimentos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cruzar Perfil x Investimentos": {
+      "main": [
+        [
+          {
+            "node": "Agente de Investimentos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente de Investimentos": {
+      "main": [
+        [
+          {
+            "node": "Montar Mensagem Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agente de Investimentos",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar Mensagem Final": {
+      "main": [
+        [
+          {
+            "node": "Juntar Mensagens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Juntar Mensagens": {
+      "main": [
+        [
+          {
+            "node": "Responder ao RPA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "70ea05bc-e091-490b-b848-f778a7f0ad43",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "017354990f7417603677ec56d45353c6fc3385360f7562af615b0aa3c0a47bac"
+  },
+  "nodeGroups": [
+    {
+      "id": "8fcf235c-b717-447a-839a-77ae8062b9b4",
+      "name": "Carregar investimentos",
+      "nodeIds": [
+        "9f726177-7f81-4ab1-ba25-188dc415f244",
+        "51ad67c2-6513-4a4b-b44c-8e8c751fc176",
+        "226cdc16-fa10-4e17-909e-07518e38795c"
+      ],
+      "description": "Busca no GitHub Pages a lista de produtos por perfil e mínimo, deixando-a pronta para consulta"
+    },
+    {
+      "id": "4c1411da-c2a9-4ee2-9f03-bd93108303d3",
+      "name": "Cruzar perfis",
+      "nodeIds": [
+        "b2318482-4856-4213-9e49-63da4d6b8089",
+        "79511b1a-1335-4652-ade3-2bff8de2c4d0",
+        "b598089d-93b8-4f1a-bde9-6898727019d3"
+      ],
+      "description": "Separa cada cliente enviado pelo RPA, filtra produtos do seu perfil que cabem no saldo e monta a mensagem fixa"
+    },
+    {
+      "id": "ee3fc9a6-b248-4477-aef2-8f5e04136f4a",
+      "name": "Gerar recomendações",
+      "nodeIds": [
+        "621e8555-77b9-4077-a9e1-9f5c5bd444b5",
+        "a765c871-e685-4aeb-8118-a89943804baa",
+        "aae69445-498b-46b8-b2dc-3cea551080a8"
+      ],
+      "description": "IA escreve uma mensagem única por cliente usando só os produtos compatíveis; mantém também a versão fixa"
+    },
+    {
+      "id": "21edd620-f6a5-4230-87f7-12523633a2b3",
+      "name": "Devolver resultado",
+      "nodeIds": [
+        "f5453571-4df9-4768-81bd-b7fc21d336d6",
+        "f27cc125-9a2b-457b-a909-fc10390f7656"
+      ],
+      "description": "Junta todas as mensagens em uma lista e devolve ao script Python como resposta da chamada"
+    }
+  ],
+  "id": "TL4FCpMIEXtkDrpN",
+  "tags": []
+}
